@@ -141,6 +141,14 @@ main { flex: 1; padding: 16px 16px 96px; max-width: 640px; width: 100%; margin: 
   content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 3px;
   border-radius: 0 3px 3px 0; background: var(--destaque);
 }
+/* Não lida pisca até ser tocada (pedido do usuário) */
+.card.nao-lida { animation: piscar 1.6s ease-in-out infinite; }
+@keyframes piscar {
+  50% { border-color: var(--borda); box-shadow: 0 0 0 3px var(--destaque-suave); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.nao-lida { animation-duration: 3.2s; }
+}
 .card-topo { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--texto-2); margin-bottom: 4px; }
 .card-app { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: 11.5px; }
 .card-hora { margin-left: auto; white-space: nowrap; }
@@ -184,10 +192,40 @@ main { flex: 1; padding: 16px 16px 96px; max-width: 640px; width: 100%; margin: 
 .chave input:focus-visible + span { outline: 2px solid var(--destaque); outline-offset: 2px; }
 select.botao { padding-right: 8px; }
 
+/* Quadro de tarefas (só leitura, vem do PC) */
+.coluna { margin-bottom: 14px; }
+.coluna > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 2px; font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--texto-2);
+}
+.coluna > summary::-webkit-details-marker { display: none; }
+.coluna > summary::before { content: "▸"; transition: transform .15s; }
+.coluna[open] > summary::before { transform: rotate(90deg); }
+.coluna .qtd { margin-left: auto; font-weight: 600; }
+.tarefa {
+  background: var(--superficie); border: 1px solid var(--borda); border-left: 3px solid var(--destaque);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; box-shadow: var(--sombra);
+}
+.coluna[data-id="feito"] .tarefa { border-left-color: var(--borda); }
+.coluna[data-id="feito"] .tarefa-titulo { text-decoration: line-through; color: var(--texto-2); }
+.tarefa-titulo { margin: 0; font-size: 14.5px; overflow-wrap: anywhere; }
+.etiquetas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.etiqueta {
+  font-size: 11.5px; padding: 2px 7px; border-radius: 6px;
+  background: var(--superficie-2); color: var(--texto-2); border: 1px solid var(--borda);
+}
+.etiqueta.jira { color: var(--destaque); font-family: ui-monospace, Consolas, monospace; font-weight: 600; }
+.etiqueta.atrasada { color: var(--erro); border-color: var(--erro); }
+.etiqueta.hoje { color: var(--aviso); border-color: var(--aviso); }
+.mais-feitas { font-size: 12.5px; color: var(--texto-2); margin: 2px 2px 0; }
+.quadro-info { font-size: 12.5px; color: var(--texto-2); margin: 0 0 6px; }
+
 /* ===================== Navegação inferior ===================== */
 nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   background: var(--superficie); border-top: 1px solid var(--borda);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -242,6 +280,16 @@ nav button[aria-selected="true"] { color: var(--destaque); font-weight: 600; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
       <p>Nenhuma notificação ainda.</p>
       <button class="botao primario" type="button" data-ir="conexao">Conectar ao PC</button>
+    </div>
+  </section>
+
+  <!-- ===== Aba Tarefas (quadro do PC, só leitura) ===== -->
+  <section class="aba" id="aba-tarefas" role="tabpanel">
+    <p class="quadro-info" id="quadro-info"></p>
+    <div id="quadro"></div>
+    <div class="vazio oculto" id="quadro-vazio">
+      <p>O quadro de tarefas ainda não veio do PC.</p>
+      <p>Conecte ao Gerenciador de Projetos: ele manda o quadro ao conectar e a cada mudança.</p>
     </div>
   </section>
 
@@ -309,6 +357,10 @@ nav button[aria-selected="true"] { color: var(--destaque); font-weight: 600; }
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
     Notificações<span class="selo oculto" id="selo"></span>
   </button>
+  <button type="button" role="tab" data-aba="tarefas" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/><path d="M5 7h2M11 7h2M17 7h2M11 11h2"/></svg>
+    Tarefas
+  </button>
   <button type="button" role="tab" data-aba="conexao" aria-selected="false">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
     Conexão
@@ -337,6 +389,7 @@ const LIMITE_HISTORICO = 500;
 const CHAVE_HISTORICO = 'notif-ble:historico';
 const CHAVE_CONFIG = 'notif-ble:config';
 const CHAVE_DISPOSITIVO = 'notif-ble:dispositivo';
+const CHAVE_QUADRO = 'notif-ble:quadro';
 const ESPERAS_RECONEXAO = [1, 2, 4, 8, 15, 30]; // segundos (backoff)
 
 /* =========================================================================
@@ -356,6 +409,10 @@ const config = Object.assign(
 );
 let historico = lerJSON(CHAVE_HISTORICO, []);
 if (!Array.isArray(historico)) historico = [];
+let quadro = lerJSON(CHAVE_QUADRO, null);   // { colunas, ts } — última foto vinda do PC
+// ids de mensagens já tratadas (notificação, remoção, quadro): o vigia não
+// pode tomar como "perdida" uma mensagem que não vira card
+const idsProcessados = new Set(historico.map((h) => h.id));
 
 /* =========================================================================
    Utilidades de interface
@@ -497,7 +554,70 @@ function atualizarContadores() {
 
 setInterval(() => {
   document.querySelectorAll('.card-hora').forEach((t) => { t.textContent = horaRelativa(Number(t.dataset.ts)); });
+  if (quadro) $('#quadro-info').textContent = `Do PC, atualizado ${horaRelativa(quadro.ts)}. Só leitura.`;
 }, 30000);
+
+/* ── Quadro de tarefas (foto do PC, só leitura) ── */
+const ROTULO_PRAZO = { atrasada: 'atrasada', hoje: 'hoje', semana: 'esta semana' };
+const abertasQuadro = new Set(['a_fazer', 'andamento']);   // Feito começa recolhida
+
+function etiqueta(texto, classe) {
+  const s = document.createElement('span');
+  s.className = 'etiqueta' + (classe ? ` ${classe}` : '');
+  s.textContent = texto;
+  return s;
+}
+
+function renderQuadro() {
+  const alvo = $('#quadro');
+  alvo.textContent = '';
+  const tem = quadro && Array.isArray(quadro.colunas);
+  $('#quadro-vazio').classList.toggle('oculto', !!tem);
+  $('#quadro-info').textContent = tem ? `Do PC, atualizado ${horaRelativa(quadro.ts)}. Só leitura.` : '';
+  if (!tem) return;
+  for (const c of quadro.colunas) {
+    const det = document.createElement('details');
+    det.className = 'coluna';
+    det.dataset.id = c.id;
+    det.open = abertasQuadro.has(c.id);
+    det.addEventListener('toggle', () => {
+      if (det.open) abertasQuadro.add(c.id); else abertasQuadro.delete(c.id);
+    });
+    const sum = document.createElement('summary');
+    const nome = document.createElement('span');
+    nome.textContent = c.titulo;
+    const qtd = document.createElement('span');
+    qtd.className = 'qtd';
+    qtd.textContent = String(c.total ?? c.tarefas.length);
+    sum.append(nome, qtd);
+    det.append(sum);
+    for (const t of c.tarefas) {
+      const card = document.createElement('div');
+      card.className = 'tarefa';
+      const tit = document.createElement('p');
+      tit.className = 'tarefa-titulo';
+      tit.textContent = t.t;
+      card.append(tit);
+      const et = document.createElement('div');
+      et.className = 'etiquetas';
+      if (t.sit) et.append(etiqueta(ROTULO_PRAZO[t.sit] || t.sit, t.sit));
+      if (t.p) et.append(etiqueta(new Date(`${t.p}T12:00`).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })));
+      if (t.j) et.append(etiqueta(t.j, 'jira'));
+      if (t.s) et.append(etiqueta(t.s));
+      if (t.proj) et.append(etiqueta(t.proj));
+      if (et.childElementCount) card.append(et);
+      det.append(card);
+    }
+    const total = c.total ?? c.tarefas.length;
+    if (total > c.tarefas.length) {
+      const mais = document.createElement('p');
+      mais.className = 'mais-feitas';
+      mais.textContent = `Mostrando ${c.tarefas.length} de ${total} (as mais recentes).`;
+      det.append(mais);
+    }
+    alvo.append(det);
+  }
+}
 
 $('#botao-lidas').addEventListener('click', () => {
   historico.forEach((n) => { n.lida = true; });
@@ -855,6 +975,18 @@ function processarJSON(bytes) {
     registrar(`Recebido valor inválido (${bytes.length} B): ${e.message}`);
     return;
   }
+  if (n && typeof n.id === 'string') idsProcessados.add(n.id);
+
+  // Foto nova do quadro de tarefas: substitui a anterior, sem alerta
+  if (n && n.tipo === 'quadro' && typeof n.id === 'string' && Array.isArray(n.colunas)) {
+    quadro = { colunas: n.colunas, ts: Number(n.ts) || Date.now() };
+    gravarJSON(CHAVE_QUADRO, quadro);
+    renderQuadro();
+    registrar(`Quadro de tarefas atualizado (${n.colunas.map((c) => c.total ?? c.tarefas.length).join(' / ')}).`);
+    enviarAck(n.id);
+    return;
+  }
+
   // Ordem do PC: o assunto foi resolvido lá (ex.: pergunta respondida no notebook)
   if (n && n.tipo === 'remover' && typeof n.id === 'string' && typeof n.chave === 'string') {
     const antes = historico.length;
@@ -944,7 +1076,7 @@ function vigiar() {
       return;   // outra falha de leitura: a próxima tenta de novo
     }
     const id = idDoValor(bytes);
-    const perdida = id && !fragmentos.has(id) && !historico.some((h) => h.id === id);
+    const perdida = id && !fragmentos.has(id) && !idsProcessados.has(id);
     if (!perdida) { suspeitaVigia = null; return; }
     if (suspeitaVigia !== id) { suspeitaVigia = id; return; }   // espera confirmar
     registrar(`Notificação [${id}] não chegou pela inscrição; reconectando…`);
@@ -974,6 +1106,7 @@ function enviarAck(id) {
 $('#info-servico').textContent = SERVICO_UUID;
 aplicarTema();
 renderizar();
+renderQuadro();
 definirEstado('desconectado', 'Toque em Conectar e escolha o seu PC.');
 
 if (suporteBluetooth()) {
