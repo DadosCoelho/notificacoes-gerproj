@@ -1,0 +1,12 @@
+# Este repositório publica só o site (index.html, README.md, .nojekyll).
+# Arquivos de trabalho locais ficam fora do git.
+CLAUDE.md
+.claude/
+.rtk/
+ai-docs/
+pesquisa/
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/

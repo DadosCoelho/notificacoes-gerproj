@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16181d">
+<title>Notificações do PC</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b82f6'/%3E%3Cpath d='M16 7a6 6 0 0 0-6 6v4l-2 3h16l-2-3v-4a6 6 0 0 0-6-6zm-2.5 15a2.5 2.5 0 0 0 5 0z' fill='white'/%3E%3C/svg%3E">
+<style>
+/* ===================== Tokens de cor (claro / escuro) ===================== */
+:root {
+  --fundo: #f4f5f7;
+  --superficie: #ffffff;
+  --superficie-2: #eceef2;
+  --borda: #dde0e6;
+  --texto: #15171c;
+  --texto-2: #5b6170;
+  --destaque: #2563eb;
+  --destaque-suave: #dbe6fd;
+  --ok: #15803d;
+  --aviso: #b45309;
+  --erro: #b91c1c;
+  --sombra: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .08);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fundo: #101216;
+    --superficie: #181b21;
+    --superficie-2: #22262e;
+    --borda: #2c313a;
+    --texto: #e8eaee;
+    --texto-2: #9aa1ad;
+    --destaque: #60a5fa;
+    --destaque-suave: #1b2a44;
+    --ok: #4ade80;
+    --aviso: #fbbf24;
+    --erro: #f87171;
+    --sombra: none;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --fundo: #101216;
+  --superficie: #181b21;
+  --superficie-2: #22262e;
+  --borda: #2c313a;
+  --texto: #e8eaee;
+  --texto-2: #9aa1ad;
+  --destaque: #60a5fa;
+  --destaque-suave: #1b2a44;
+  --ok: #4ade80;
+  --aviso: #fbbf24;
+  --erro: #f87171;
+  --sombra: none;
+  color-scheme: dark;
+}
+
+/* ===================== Base ===================== */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  flex-direction: column;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+.oculto { display: none !important; }
+
+/* ===================== Cabeçalho ===================== */
+header {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: var(--superficie);
+  border-bottom: 1px solid var(--borda);
+}
+header h1 { font-size: 17px; margin: 0; flex: 1; font-weight: 650; letter-spacing: -.01em; }
+.status {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 13px; font-weight: 550;
+  background: var(--superficie-2); color: var(--texto-2);
+}
+.status .ponto { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.status[data-estado="conectado"] { color: var(--ok); }
+.status[data-estado="conectando"] { color: var(--aviso); }
+.status[data-estado="conectando"] .ponto { animation: pulso 1s ease-in-out infinite; }
+@keyframes pulso { 50% { opacity: .25; } }
+.botao-icone {
+  width: 36px; height: 36px; display: grid; place-items: center;
+  border: 0; border-radius: 10px; background: transparent; color: var(--texto-2);
+}
+.botao-icone:active { background: var(--superficie-2); }
+.botao-icone svg { width: 20px; height: 20px; }
+
+/* ===================== Conteúdo ===================== */
+main { flex: 1; padding: 16px 16px 96px; max-width: 640px; width: 100%; margin: 0 auto; }
+.aba { display: none; }
+.aba.ativa { display: block; }
+
+.aviso {
+  border: 1px solid var(--borda); border-left: 4px solid var(--aviso);
+  background: var(--superficie); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 14px; font-size: 14px;
+}
+.aviso.erro { border-left-color: var(--erro); }
+.aviso strong { display: block; margin-bottom: 4px; }
+.aviso p { margin: 4px 0 0; color: var(--texto-2); }
+
+.barra-acoes { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+.barra-acoes .contador { flex: 1; color: var(--texto-2); font-size: 13px; }
+
+.botao {
+  border: 1px solid var(--borda); background: var(--superficie);
+  border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 550;
+}
+.botao:active { background: var(--superficie-2); }
+.botao:disabled { opacity: .5; cursor: default; }
+.botao.primario { background: var(--destaque); border-color: var(--destaque); color: #fff; }
+:root[data-theme="dark"] .botao.primario { color: #0b1220; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .botao.primario { color: #0b1220; } }
+.botao.grande { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; }
+.botao.perigo { color: var(--erro); }
+
+/* Cards de notificação */
+.lista { display: flex; flex-direction: column; gap: 10px; }
+.card {
+  background: var(--superficie); border: 1px solid var(--borda);
+  border-radius: 14px; padding: 12px 14px; box-shadow: var(--sombra);
+  position: relative; text-align: left; width: 100%;
+}
+.card.nao-lida { border-color: var(--destaque); background: linear-gradient(var(--destaque-suave), var(--destaque-suave)) padding-box; }
+.card.nao-lida::before {
+  content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--destaque);
+}
+.card-topo { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--texto-2); margin-bottom: 4px; }
+.card-app { font-weight: 600; text-transform: uppercase; letter-spacing: .04em; font-size: 11.5px; }
+.card-hora { margin-left: auto; white-space: nowrap; }
+.card-titulo { font-weight: 650; font-size: 15.5px; margin: 0; overflow-wrap: anywhere; }
+.card-mensagem { margin: 4px 0 0; color: var(--texto-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.card-mensagem.recolhida { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+
+.vazio { text-align: center; color: var(--texto-2); padding: 48px 16px; }
+.vazio svg { width: 48px; height: 48px; opacity: .5; margin-bottom: 8px; }
+
+/* Conexão */
+.painel {
+  background: var(--superficie); border: 1px solid var(--borda); border-radius: 14px;
+  padding: 16px; margin-bottom: 14px; box-shadow: var(--sombra);
+}
+.painel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--texto-2); margin: 0 0 10px; font-weight: 600; }
+.estado-grande { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.estado-grande .ponto { width: 14px; height: 14px; border-radius: 50%; background: var(--texto-2); flex: none; }
+.estado-grande[data-estado="conectado"] .ponto { background: var(--ok); }
+.estado-grande[data-estado="conectando"] .ponto { background: var(--aviso); animation: pulso 1s infinite; }
+.estado-grande b { display: block; font-size: 17px; }
+.estado-grande span { color: var(--texto-2); font-size: 14px; }
+.pilha { display: flex; flex-direction: column; gap: 8px; }
+.link { background: none; border: 0; color: var(--destaque); padding: 6px 0; font-size: 14px; text-align: left; }
+.dados { font-size: 13px; color: var(--texto-2); display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+.dados code { font-size: 12px; overflow-wrap: anywhere; color: var(--texto); }
+.registro { font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--texto-2); max-height: 180px; overflow: auto; margin: 0; white-space: pre-wrap; }
+
+/* Config */
+.opcao { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--borda); }
+.opcao:first-of-type { border-top: 0; padding-top: 0; }
+.opcao div { flex: 1; }
+.opcao b { display: block; font-weight: 550; }
+.opcao small { color: var(--texto-2); font-size: 13px; }
+.chave { position: relative; width: 46px; height: 28px; flex: none; }
+.chave input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; cursor: pointer; z-index: 1; }
+.chave span { position: absolute; inset: 0; border-radius: 999px; background: var(--superficie-2); border: 1px solid var(--borda); transition: background .15s; }
+.chave span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--texto-2); transition: transform .15s, background .15s; }
+.chave input:checked + span { background: var(--destaque); border-color: var(--destaque); }
+.chave input:checked + span::after { transform: translateX(18px); background: #fff; }
+.chave input:focus-visible + span { outline: 2px solid var(--destaque); outline-offset: 2px; }
+select.botao { padding-right: 8px; }
+
+/* ===================== Navegação inferior ===================== */
+nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  background: var(--superficie); border-top: 1px solid var(--borda);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+nav button {
+  border: 0; background: none; padding: 8px 4px 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 12px; color: var(--texto-2); position: relative;
+}
+nav button svg { width: 24px; height: 24px; }
+nav button[aria-selected="true"] { color: var(--destaque); font-weight: 600; }
+.selo {
+  position: absolute; top: 4px; left: calc(50% + 6px);
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--erro); color: #fff; font-size: 11px; font-weight: 700;
+  display: grid; place-items: center;
+}
+
+.toast {
+  position: fixed; left: 16px; right: 16px; bottom: 84px; z-index: 10;
+  max-width: 480px; margin: 0 auto;
+  background: var(--texto); color: var(--fundo);
+  padding: 10px 14px; border-radius: 10px; font-size: 14px;
+  transform: translateY(20px); opacity: 0; pointer-events: none; transition: .2s;
+}
+.toast.visivel { transform: none; opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Notificações do PC</h1>
+  <span class="status" id="status" data-estado="desconectado" role="status" aria-live="polite">
+    <span class="ponto"></span><span id="status-texto">Desconectado</span>
+  </span>
+  <button class="botao-icone" id="botao-tema" type="button" aria-label="Alternar tema claro/escuro">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+  </button>
+</header>
+
+<main>
+  <div id="avisos"></div>
+
+  <!-- ===== Aba Notificações ===== -->
+  <section class="aba ativa" id="aba-notificacoes" role="tabpanel">
+    <div class="barra-acoes">
+      <span class="contador" id="contador"></span>
+      <button class="botao" id="botao-lidas" type="button">Marcar lidas</button>
+      <button class="botao perigo" id="botao-limpar" type="button">Limpar</button>
+    </div>
+    <div class="lista" id="lista"></div>
+    <div class="vazio oculto" id="vazio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      <p>Nenhuma notificação ainda.</p>
+      <button class="botao primario" type="button" data-ir="conexao">Conectar ao PC</button>
+    </div>
+  </section>
+
+  <!-- ===== Aba Conexão ===== -->
+  <section class="aba" id="aba-conexao" role="tabpanel">
+    <div class="painel">
+      <div class="estado-grande" id="estado-grande" data-estado="desconectado">
+        <span class="ponto"></span>
+        <div><b id="estado-titulo">Desconectado</b><span id="estado-detalhe">Toque em Conectar e escolha o seu PC.</span></div>
+      </div>
+      <div class="pilha">
+        <button class="botao primario grande" id="botao-conectar" type="button">Conectar</button>
+        <button class="botao grande oculto" id="botao-desconectar" type="button">Desconectar</button>
+        <button class="link" id="botao-todos" type="button">O PC não aparece na lista? Mostrar todos os dispositivos</button>
+      </div>
+    </div>
+
+    <div class="painel">
+      <h2>Dispositivo</h2>
+      <div class="dados">
+        <span>Nome</span><code id="info-nome">—</code>
+        <span>Serviço</span><code id="info-servico"></code>
+        <span>Recebidas</span><code id="info-recebidas">0 nesta sessão</code>
+      </div>
+    </div>
+
+    <div class="painel">
+      <h2>Registro</h2>
+      <pre class="registro" id="registro"></pre>
+    </div>
+  </section>
+
+  <!-- ===== Aba Config ===== -->
+  <section class="aba" id="aba-config" role="tabpanel">
+    <div class="painel">
+      <h2>Ao receber</h2>
+      <label class="opcao"><div><b>Vibrar</b><small>Vibração curta a cada notificação</small></div>
+        <span class="chave"><input type="checkbox" data-config="vibrar"><span></span></span></label>
+      <label class="opcao"><div><b>Som</b><small>Bipe curto a cada notificação</small></div>
+        <span class="chave"><input type="checkbox" data-config="som"><span></span></span></label>
+      <div class="opcao"><div><b>Testar</b><small>Vibração e som com as opções acima</small></div>
+        <button class="botao" id="botao-testar" type="button">Testar</button></div>
+    </div>
+    <div class="painel">
+      <h2>Conexão</h2>
+      <label class="opcao"><div><b>Reconectar sozinho</b><small>Tenta de novo quando a conexão cai</small></div>
+        <span class="chave"><input type="checkbox" data-config="reconectar"><span></span></span></label>
+      <label class="opcao" id="opcao-tela"><div><b>Manter a tela acesa</b><small id="tela-detalhe">Enquanto o app estiver aberto</small></div>
+        <span class="chave"><input type="checkbox" data-config="telaAcesa"><span></span></span></label>
+    </div>
+    <div class="painel">
+      <h2>Aparência</h2>
+      <div class="opcao"><div><b>Tema</b></div>
+        <select class="botao" id="select-tema">
+          <option value="auto">Automático</option>
+          <option value="claro">Claro</option>
+          <option value="escuro">Escuro</option>
+        </select></div>
+    </div>
+  </section>
+</main>
+
+<nav role="tablist">
+  <button type="button" role="tab" data-aba="notificacoes" aria-selected="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    Notificações<span class="selo oculto" id="selo"></span>
+  </button>
+  <button type="button" role="tab" data-aba="conexao" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>
+    Conexão
+  </button>
+  <button type="button" role="tab" data-aba="config" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Config
+  </button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   Identificadores GATT — os MESMOS do servidor_ble.py
+   ========================================================================= */
+const SERVICO_UUID = '477dff30-bf81-4a92-8e97-6b5ca4766a91';
+const NOTIFY_UUID  = '980b9431-a25f-4b2a-8096-bac233844b73';
+const ACK_UUID     = '9489dfd0-1114-47eb-ab50-dfaffe57f641';
+
+const MARCA_FRAGMENTO = 0x7E;     // "~" — JSON puro começa com "{"
+const TAMANHO_CABECALHO = 9;      // marca(1) + id(4) + parte(2) + total(2)
+const LIMITE_HISTORICO = 500;
+const CHAVE_HISTORICO = 'notif-ble:historico';
+const CHAVE_CONFIG = 'notif-ble:config';
+const CHAVE_DISPOSITIVO = 'notif-ble:dispositivo';
+const ESPERAS_RECONEXAO = [1, 2, 4, 8, 15, 30]; // segundos (backoff)
+
+/* =========================================================================
+   Armazenamento local (tolerante a falhas: aba anônima, cota cheia etc.)
+   ========================================================================= */
+function lerJSON(chave, padrao) {
+  try { const v = localStorage.getItem(chave); return v ? JSON.parse(v) : padrao; }
+  catch { return padrao; }
+}
+function gravarJSON(chave, valor) {
+  try { localStorage.setItem(chave, JSON.stringify(valor)); } catch { /* sem armazenamento */ }
+}
+
+const config = Object.assign(
+  { vibrar: true, som: true, reconectar: true, telaAcesa: false, tema: 'auto' },
+  lerJSON(CHAVE_CONFIG, {})
+);
+let historico = lerJSON(CHAVE_HISTORICO, []);
+if (!Array.isArray(historico)) historico = [];
+
+/* =========================================================================
+   Utilidades de interface
+   ========================================================================= */
+const $ = (sel) => document.querySelector(sel);
+
+function registrar(texto) {
+  const hora = new Date().toLocaleTimeString('pt-BR');
+  const el = $('#registro');
+  el.textContent = `${hora}  ${texto}\n` + el.textContent.slice(0, 6000);
+}
+
+let temporizadorToast;
+function mostrarToast(texto) {
+  const el = $('#toast');
+  el.textContent = texto;
+  el.classList.add('visivel');
+  clearTimeout(temporizadorToast);
+  temporizadorToast = setTimeout(() => el.classList.remove('visivel'), 3000);
+}
+
+function horaRelativa(ts) {
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 45) return 'agora';
+  const m = Math.round(s / 60);
+  if (m < 60) return `há ${m} min`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `há ${h} h`;
+  const d = Math.round(h / 24);
+  if (d < 7) return d === 1 ? 'ontem' : `há ${d} dias`;
+  return new Date(ts).toLocaleDateString('pt-BR');
+}
+
+/* =========================================================================
+   Tema
+   ========================================================================= */
+function aplicarTema() {
+  const raiz = document.documentElement;
+  if (config.tema === 'claro') raiz.dataset.theme = 'light';
+  else if (config.tema === 'escuro') raiz.dataset.theme = 'dark';
+  else delete raiz.dataset.theme;
+  const escuro = raiz.dataset.theme === 'dark' ||
+    (!raiz.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  $('meta[name="theme-color"]').content = escuro ? '#181b21' : '#ffffff';
+  $('#select-tema').value = config.tema;
+}
+$('#botao-tema').addEventListener('click', () => {
+  const escuroAgora = document.documentElement.dataset.theme === 'dark' ||
+    (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  config.tema = escuroAgora ? 'claro' : 'escuro';
+  gravarJSON(CHAVE_CONFIG, config);
+  aplicarTema();
+});
+$('#select-tema').addEventListener('change', (e) => {
+  config.tema = e.target.value;
+  gravarJSON(CHAVE_CONFIG, config);
+  aplicarTema();
+});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aplicarTema);
+
+/* =========================================================================
+   Abas
+   ========================================================================= */
+function irPara(aba) {
+  document.querySelectorAll('nav button').forEach((b) =>
+    b.setAttribute('aria-selected', String(b.dataset.aba === aba)));
+  document.querySelectorAll('.aba').forEach((s) =>
+    s.classList.toggle('ativa', s.id === `aba-${aba}`));
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav button').forEach((b) =>
+  b.addEventListener('click', () => irPara(b.dataset.aba)));
+document.querySelectorAll('[data-ir]').forEach((b) =>
+  b.addEventListener('click', () => irPara(b.dataset.ir)));
+
+/* =========================================================================
+   Histórico / cards
+   ========================================================================= */
+function salvarHistorico() {
+  if (historico.length > LIMITE_HISTORICO) historico.length = LIMITE_HISTORICO;
+  gravarJSON(CHAVE_HISTORICO, historico);
+}
+
+function renderizar() {
+  const lista = $('#lista');
+  lista.textContent = '';
+  for (const n of historico) {
+    const card = document.createElement('article');
+    card.className = 'card' + (n.lida ? '' : ' nao-lida');
+    card.dataset.id = n.id;
+
+    const topo = document.createElement('div');
+    topo.className = 'card-topo';
+    const app = document.createElement('span');
+    app.className = 'card-app';
+    app.textContent = n.app || 'PC';
+    const hora = document.createElement('time');
+    hora.className = 'card-hora';
+    hora.dataset.ts = n.ts;
+    hora.dateTime = new Date(n.ts).toISOString();
+    hora.title = new Date(n.ts).toLocaleString('pt-BR');
+    hora.textContent = horaRelativa(n.ts);
+    topo.append(app, hora);
+
+    const titulo = document.createElement('p');
+    titulo.className = 'card-titulo';
+    titulo.textContent = n.titulo;
+    card.append(topo, titulo);
+
+    if (n.mensagem) {
+      const msg = document.createElement('p');
+      msg.className = 'card-mensagem recolhida';
+      msg.textContent = n.mensagem;
+      card.append(msg);
+    }
+    card.addEventListener('click', () => {
+      card.querySelector('.card-mensagem')?.classList.toggle('recolhida');
+      if (!n.lida) { n.lida = true; salvarHistorico(); atualizarContadores(); card.classList.remove('nao-lida'); }
+    });
+    lista.append(card);
+  }
+  $('#vazio').classList.toggle('oculto', historico.length > 0);
+  $('.barra-acoes').classList.toggle('oculto', historico.length === 0);
+  atualizarContadores();
+}
+
+function atualizarContadores() {
+  const naoLidas = historico.filter((n) => !n.lida).length;
+  $('#contador').textContent = historico.length
+    ? `${historico.length} no histórico · ${naoLidas} não lida${naoLidas === 1 ? '' : 's'}`
+    : '';
+  const selo = $('#selo');
+  selo.textContent = naoLidas > 99 ? '99+' : String(naoLidas);
+  selo.classList.toggle('oculto', naoLidas === 0);
+  $('#botao-lidas').disabled = naoLidas === 0;
+  $('#botao-limpar').disabled = historico.length === 0;
+  document.title = naoLidas ? `(${naoLidas}) Notificações do PC` : 'Notificações do PC';
+}
+
+setInterval(() => {
+  document.querySelectorAll('.card-hora').forEach((t) => { t.textContent = horaRelativa(Number(t.dataset.ts)); });
+}, 30000);
+
+$('#botao-lidas').addEventListener('click', () => {
+  historico.forEach((n) => { n.lida = true; });
+  salvarHistorico();
+  renderizar();
+});
+$('#botao-limpar').addEventListener('click', () => {
+  if (!confirm('Apagar todo o histórico de notificações deste celular?')) return;
+  historico = [];
+  salvarHistorico();
+  renderizar();
+});
+
+/* =========================================================================
+   Vibração, som e tela acesa
+   ========================================================================= */
+let contextoAudio = null;
+function prepararAudio() {   // precisa partir de um gesto do usuário
+  try {
+    contextoAudio = contextoAudio || new (window.AudioContext || window.webkitAudioContext)();
+    if (contextoAudio.state === 'suspended') contextoAudio.resume();
+  } catch { contextoAudio = null; }
+}
+function bipe() {
+  if (!contextoAudio) return;
+  const t = contextoAudio.currentTime;
+  const osc = contextoAudio.createOscillator();
+  const ganho = contextoAudio.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(880, t);
+  osc.frequency.setValueAtTime(1320, t + 0.08);
+  ganho.gain.setValueAtTime(0.0001, t);
+  ganho.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+  ganho.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  osc.connect(ganho).connect(contextoAudio.destination);
+  osc.start(t);
+  osc.stop(t + 0.2);
+}
+function alertar() {
+  if (config.vibrar && navigator.vibrate) navigator.vibrate([120, 60, 120]);
+  if (config.som) bipe();
+}
+$('#botao-testar').addEventListener('click', () => { prepararAudio(); alertar(); });
+
+let travaTela = null;
+async function atualizarTelaAcesa() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    if (config.telaAcesa && document.visibilityState === 'visible' && !travaTela) {
+      travaTela = await navigator.wakeLock.request('screen');
+      travaTela.addEventListener('release', () => { travaTela = null; });
+    } else if (!config.telaAcesa && travaTela) {
+      await travaTela.release();
+      travaTela = null;
+    }
+  } catch (e) {
+    registrar(`Tela acesa indisponível: ${e.message}`);
+  }
+}
+// O Android solta a trava ao trocar de app; pega de volta ao voltar.
+document.addEventListener('visibilitychange', atualizarTelaAcesa);
+
+/* Liga os interruptores da aba Config */
+document.querySelectorAll('[data-config]').forEach((input) => {
+  const chave = input.dataset.config;
+  input.checked = !!config[chave];
+  input.addEventListener('change', () => {
+    config[chave] = input.checked;
+    gravarJSON(CHAVE_CONFIG, config);
+    if (chave === 'telaAcesa') atualizarTelaAcesa();
+    if (chave === 'som' && input.checked) prepararAudio();
+  });
+});
+if (!('wakeLock' in navigator)) {
+  $('#opcao-tela input').disabled = true;
+  $('#tela-detalhe').textContent = 'Este navegador não oferece a Wake Lock API';
+}
+if (!navigator.vibrate) {
+  $('[data-config="vibrar"]').closest('.opcao').querySelector('small').textContent = 'Este navegador não vibra';
+}
+
+/* =========================================================================
+   Bluetooth
+   ========================================================================= */
+let dispositivo = null;
+let caracNotify = null;
+let caracAck = null;
+let desconexaoManual = false;
+let tentativa = 0;
+let temporizadorReconexao = null;
+let recebidasSessao = 0;
+const fragmentos = new Map();   // id -> { total, partes: Map(parte -> Uint8Array), criadoEm }
+const decodificador = new TextDecoder('utf-8');
+
+function definirEstado(estado, detalhe) {
+  const textos = { desconectado: 'Desconectado', conectando: 'Conectando…', conectado: 'Conectado' };
+  $('#status').dataset.estado = estado;
+  $('#status-texto').textContent = textos[estado];
+  $('#estado-grande').dataset.estado = estado;
+  $('#estado-titulo').textContent = textos[estado];
+  $('#estado-detalhe').textContent = detalhe || '';
+  $('#botao-conectar').classList.toggle('oculto', estado !== 'desconectado');
+  $('#botao-desconectar').classList.toggle('oculto', estado === 'desconectado');
+  $('#botao-desconectar').textContent = estado === 'conectando' ? 'Cancelar' : 'Desconectar';
+  $('#botao-todos').classList.toggle('oculto', estado !== 'desconectado');
+  $('#info-nome').textContent = dispositivo ? (dispositivo.name || dispositivo.id) : '—';
+}
+
+function suporteBluetooth() {
+  const avisos = $('#avisos');
+  avisos.textContent = '';
+  const ehIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  function aviso(titulo, texto, erro) {
+    const div = document.createElement('div');
+    div.className = 'aviso' + (erro ? ' erro' : '');
+    const b = document.createElement('strong'); b.textContent = titulo;
+    const p = document.createElement('p'); p.textContent = texto;
+    div.append(b, p);
+    avisos.append(div);
+  }
+
+  if (!window.isSecureContext) {
+    aviso('Precisa de HTTPS',
+      'O Web Bluetooth só funciona em página segura (https://). Abra este app pelo endereço do GitHub Pages ou da Vercel, não pelo arquivo ou por http://.', true);
+    return false;
+  }
+  if (!navigator.bluetooth) {
+    if (ehIOS) {
+      aviso('iPhone/iPad não suportam Web Bluetooth',
+        'A Apple não implementa o Web Bluetooth no Safari — e no iOS todo navegador (inclusive o Chrome) usa o motor do Safari. Use um celular Android com o Chrome.', true);
+    } else {
+      aviso('Este navegador não suporta Web Bluetooth',
+        'Abra esta página no Google Chrome para Android (ou Edge/Samsung Internet atualizados). Firefox e Safari não implementam o Web Bluetooth.', true);
+    }
+    return false;
+  }
+  return true;
+}
+
+async function conferirDisponibilidade() {
+  if (!navigator.bluetooth?.getAvailability) return;
+  try {
+    const ok = await navigator.bluetooth.getAvailability();
+    if (!ok) registrar('O navegador diz que o Bluetooth está indisponível: ligue o Bluetooth do celular.');
+  } catch { /* ignorado */ }
+}
+
+/* ---- Conexão (o primeiro passo SEMPRE parte de um toque) ---- */
+async function escolherDispositivo(todos) {
+  prepararAudio();
+  desconexaoManual = false;
+  const opcoes = todos
+    ? { acceptAllDevices: true, optionalServices: [SERVICO_UUID] }
+    : { filters: [{ services: [SERVICO_UUID] }] };
+  try {
+    const escolhido = await navigator.bluetooth.requestDevice(opcoes);
+    trocarDispositivo(escolhido);
+    await abrirConexao();
+  } catch (e) {
+    if (e.name === 'NotFoundError') {
+      registrar('Nenhum dispositivo escolhido.');
+    } else {
+      tratarErro(e);
+    }
+    if (!caracNotify) definirEstado('desconectado', 'Toque em Conectar e escolha o seu PC.');
+  }
+}
+
+function trocarDispositivo(novo) {
+  if (dispositivo && dispositivo !== novo) {
+    dispositivo.removeEventListener('gattserverdisconnected', aoDesconectar);
+  }
+  dispositivo = novo;
+  dispositivo.addEventListener('gattserverdisconnected', aoDesconectar);
+  gravarJSON(CHAVE_DISPOSITIVO, { id: novo.id, nome: novo.name || '' });
+}
+
+async function abrirConexao() {
+  clearTimeout(temporizadorReconexao);
+  definirEstado('conectando', `Abrindo conexão com ${dispositivo.name || 'o PC'}…`);
+  registrar(`Conectando a ${dispositivo.name || dispositivo.id}…`);
+  const gatt = await dispositivo.gatt.connect();
+  const servico = await gatt.getPrimaryService(SERVICO_UUID);
+  caracNotify = await servico.getCharacteristic(NOTIFY_UUID);
+  caracAck = await servico.getCharacteristic(ACK_UUID);
+  caracNotify.removeEventListener('characteristicvaluechanged', aoReceberValor);
+  caracNotify.addEventListener('characteristicvaluechanged', aoReceberValor);
+  await caracNotify.startNotifications();
+  if (desconexaoManual) { dispositivo.gatt.disconnect(); return; }   // cancelado no meio
+  tentativa = 0;
+  definirEstado('conectado', 'Recebendo notificações do PC em tempo real.');
+  registrar('Conectado; notificações assinadas.');
+  if (config.telaAcesa) atualizarTelaAcesa();
+}
+
+function aoDesconectar() {
+  caracNotify = null;
+  caracAck = null;
+  filaAck = Promise.resolve();
+  if (desconexaoManual) {
+    definirEstado('desconectado', 'Desconectado por você.');
+    registrar('Desconectado.');
+    return;
+  }
+  registrar('A conexão caiu.');
+  agendarReconexao();
+}
+
+function agendarReconexao() {
+  if (!config.reconectar || !dispositivo) {
+    definirEstado('desconectado', 'A conexão caiu. Toque em Conectar.');
+    return;
+  }
+  const espera = ESPERAS_RECONEXAO[Math.min(tentativa, ESPERAS_RECONEXAO.length - 1)];
+  tentativa += 1;
+  definirEstado('conectando', `Reconectando em ${espera} s (tentativa ${tentativa})…`);
+  clearTimeout(temporizadorReconexao);
+  temporizadorReconexao = setTimeout(async () => {
+    if (desconexaoManual) return;
+    try {
+      await abrirConexao();
+    } catch (e) {
+      registrar(`Reconexão falhou: ${e.message}`);
+      agendarReconexao();
+    }
+  }, espera * 1000);
+}
+
+function desconectar() {
+  desconexaoManual = true;
+  clearTimeout(temporizadorReconexao);
+  if (dispositivo?.gatt.connected) dispositivo.gatt.disconnect();   // dispara aoDesconectar
+  else definirEstado('desconectado', 'Desconectado por você.');
+}
+
+function tratarErro(e) {
+  let texto = e.message || String(e);
+  if (e.name === 'NotAllowedError' || e.name === 'SecurityError') {
+    texto = 'O Chrome não tem permissão de Bluetooth. Veja em Configurações do Android > Apps > Chrome > Permissões > Dispositivos por perto (e Localização no Android 11 ou anterior).';
+  } else if (/User cancelled|cancel/i.test(texto)) {
+    texto = 'Seleção cancelada.';
+  } else if (e.name === 'NetworkError') {
+    texto = 'Não foi possível conectar. Confira se o servidor_ble.py está rodando e anunciando no PC.';
+  } else if (e.name === 'NotFoundError' && /service/i.test(texto)) {
+    texto = 'O dispositivo escolhido não tem o serviço de notificações. Escolha o PC que roda o servidor_ble.py.';
+  }
+  registrar(`Erro: ${texto}`);
+  mostrarToast(texto);
+}
+
+/* Na volta à página: tenta o último PC sem abrir o seletor (se o Chrome permitir) */
+async function tentarDispositivoConhecido() {
+  if (!navigator.bluetooth?.getDevices) return;
+  const salvo = lerJSON(CHAVE_DISPOSITIVO, null);
+  if (!salvo) return;
+  try {
+    const conhecidos = await navigator.bluetooth.getDevices();
+    const achado = conhecidos.find((d) => d.id === salvo.id);
+    if (!achado) return;
+    trocarDispositivo(achado);
+    $('#info-nome').textContent = achado.name || achado.id;
+    if (config.reconectar) {
+      registrar('PC conhecido encontrado; tentando reconectar…');
+      await abrirConexao();
+    }
+  } catch (e) {
+    registrar(`Reconexão automática não deu certo (${e.message}). Toque em Conectar.`);
+    definirEstado('desconectado', 'Toque em Conectar e escolha o seu PC.');
+  }
+}
+
+/* ---- Recepção, remontagem e ACK ---- */
+function aoReceberValor(evento) {
+  const v = evento.target.value;   // DataView
+  const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  if (bytes.length === 0) return;
+
+  if (bytes[0] !== MARCA_FRAGMENTO) {
+    processarJSON(bytes);
+    return;
+  }
+  if (bytes.length <= TAMANHO_CABECALHO) return;
+  const id = Array.from(bytes.subarray(1, 5), (b) => b.toString(16).padStart(2, '0')).join('');
+  const parte = v.getUint16(5);    // big-endian é o padrão do DataView
+  const total = v.getUint16(7);
+  if (parte < 1 || parte > total) return;
+
+  let pacote = fragmentos.get(id);
+  if (!pacote || pacote.total !== total) {
+    pacote = { total, partes: new Map(), criadoEm: Date.now() };
+    fragmentos.set(id, pacote);
+  }
+  pacote.partes.set(parte, bytes.slice(TAMANHO_CABECALHO));   // copia: o buffer é reaproveitado
+
+  if (pacote.partes.size === total) {
+    fragmentos.delete(id);
+    let tamanho = 0;
+    for (const p of pacote.partes.values()) tamanho += p.length;
+    const junto = new Uint8Array(tamanho);
+    let pos = 0;
+    for (let i = 1; i <= total; i++) { const p = pacote.partes.get(i); junto.set(p, pos); pos += p.length; }
+    processarJSON(junto);
+  }
+  // Descarta remontagens abandonadas (conexão caiu no meio; o PC reenvia tudo)
+  const agora = Date.now();
+  for (const [chave, p] of fragmentos) if (agora - p.criadoEm > 60000) fragmentos.delete(chave);
+}
+
+function processarJSON(bytes) {
+  let n;
+  try {
+    n = JSON.parse(decodificador.decode(bytes));
+  } catch (e) {
+    registrar(`Recebido valor inválido (${bytes.length} B): ${e.message}`);
+    return;
+  }
+  if (!n || typeof n.id !== 'string' || typeof n.titulo !== 'string') {
+    registrar('Recebido JSON sem id/titulo; ignorado.');
+    return;
+  }
+  const repetida = historico.some((h) => h.id === n.id);
+  if (!repetida) {
+    historico.unshift({
+      id: n.id,
+      titulo: n.titulo,
+      mensagem: typeof n.mensagem === 'string' ? n.mensagem : '',
+      app: typeof n.app === 'string' ? n.app : 'PC',
+      ts: Number(n.ts) || Date.now(),
+      lida: false,
+    });
+    salvarHistorico();
+    renderizar();
+    alertar();
+    recebidasSessao += 1;
+    $('#info-recebidas').textContent = `${recebidasSessao} nesta sessão`;
+    registrar(`Recebida [${n.id}] ${n.titulo}`);
+  } else {
+    registrar(`Repetida [${n.id}] (só confirma de novo)`);
+  }
+  enviarAck(n.id);
+}
+
+// O Chrome não aceita duas operações GATT ao mesmo tempo: os ACKs vão em fila.
+let filaAck = Promise.resolve();
+function enviarAck(id) {
+  filaAck = filaAck.then(async () => {
+    if (!caracAck) return;
+    const dados = new TextEncoder().encode(id);
+    try {
+      if (caracAck.writeValueWithResponse) await caracAck.writeValueWithResponse(dados);
+      else await caracAck.writeValue(dados);
+    } catch (e) {
+      registrar(`ACK de [${id}] falhou: ${e.message} (o PC vai reenviar)`);
+    }
+  });
+}
+
+/* =========================================================================
+   Início
+   ========================================================================= */
+$('#info-servico').textContent = SERVICO_UUID;
+aplicarTema();
+renderizar();
+definirEstado('desconectado', 'Toque em Conectar e escolha o seu PC.');
+
+if (suporteBluetooth()) {
+  $('#botao-conectar').addEventListener('click', () => escolherDispositivo(false));
+  $('#botao-todos').addEventListener('click', () => escolherDispositivo(true));
+  $('#botao-desconectar').addEventListener('click', desconectar);
+  conferirDisponibilidade();
+  tentarDispositivoConhecido();
+} else {
+  $('#botao-conectar').disabled = true;
+  $('#botao-todos').classList.add('oculto');
+  definirEstado('desconectado', 'Web Bluetooth indisponível neste navegador.');
+  $('#botao-conectar').classList.remove('oculto');
+}
+if (config.telaAcesa) atualizarTelaAcesa();
+</script>
+</body>
+</html>
