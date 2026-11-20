@@ -887,6 +887,7 @@ function processarJSON(bytes) {
    o NOTIFY_CHAR, que guarda o último pedaço enviado. Se ele for de uma
    notificação que não chegou, duas leituras seguidas, a página reconecta. */
 const INTERVALO_VIGIA = 5000;
+const PRAZO_LEITURA = 6000;
 let temporizadorVigia = null;
 let suspeitaVigia = null;   // id visto na leitura anterior sem ter chegado
 
@@ -914,9 +915,21 @@ function vigiar() {
     if (!caracNotify) return;
     let bytes;
     try {
-      const v = await caracNotify.readValue();
+      // Prazo: no estado "surdo" nem a resposta da leitura chega, e esperar
+      // para sempre travaria a fila (ACKs inclusive).
+      const v = await Promise.race([
+        caracNotify.readValue(),
+        new Promise((_, falha) => setTimeout(() => falha(new Error('prazo')), PRAZO_LEITURA)),
+      ]);
       bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
-    } catch { return; }   // leitura falhou: a próxima tenta de novo
+    } catch (e) {
+      if (e.message === 'prazo') {
+        registrar('O PC não respondeu à leitura em 6 s; reconectando…');
+        pararVigia();
+        if (dispositivo?.gatt.connected) dispositivo.gatt.disconnect();   // aoDesconectar reconecta
+      }
+      return;   // outra falha de leitura: a próxima tenta de novo
+    }
     const id = idDoValor(bytes);
     const perdida = id && !fragmentos.has(id) && !historico.some((h) => h.id === id);
     if (!perdida) { suspeitaVigia = null; return; }
