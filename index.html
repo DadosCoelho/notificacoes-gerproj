@@ -649,9 +649,19 @@ async function conferirDisponibilidade() {
 async function escolherDispositivo(todos) {
   prepararAudio();
   desconexaoManual = false;
-  const opcoes = todos
-    ? { acceptAllDevices: true, optionalServices: [SERVICO_UUID] }
-    : { filters: [{ services: [SERVICO_UUID] }] };
+  // O anúncio do Windows nem sempre leva o UUID do serviço: além dele, o
+  // filtro aceita o nome do PC da última conexão. Sem nome guardado, lista tudo.
+  const salvo = lerJSON(CHAVE_DISPOSITIVO, null);
+  let opcoes;
+  if (todos || !salvo?.nome) {
+    opcoes = { acceptAllDevices: true, optionalServices: [SERVICO_UUID] };
+    if (!todos) registrar('Primeira conexão: escolha o nome do seu computador na lista.');
+  } else {
+    opcoes = {
+      filters: [{ services: [SERVICO_UUID] }, { name: salvo.nome }],
+      optionalServices: [SERVICO_UUID],
+    };
+  }
   try {
     const escolhido = await navigator.bluetooth.requestDevice(opcoes);
     trocarDispositivo(escolhido);
@@ -672,12 +682,36 @@ function trocarDispositivo(novo) {
   }
   dispositivo = novo;
   dispositivo.addEventListener('gattserverdisconnected', aoDesconectar);
-  gravarJSON(CHAVE_DISPOSITIVO, { id: novo.id, nome: novo.name || '' });
 }
 
-async function abrirConexao() {
+/* Espera o PC anunciar. O Chrome recusa reconectar a um dispositivo vindo de
+   getDevices() ("no longer in range") até ver um anúncio dele. */
+function esperarAnuncio(d, ms) {
+  if (!d.watchAdvertisements) return Promise.resolve();
+  return new Promise((ok, falha) => {
+    const controle = new AbortController();
+    const fim = (erro) => {
+      clearTimeout(prazo);
+      d.removeEventListener('advertisementreceived', visto);
+      controle.abort();
+      erro ? falha(erro) : ok();
+    };
+    const visto = () => fim();
+    const prazo = setTimeout(() => fim(new Error(`o PC não foi visto anunciando em ${ms / 1000} s`)), ms);
+    d.addEventListener('advertisementreceived', visto);
+    d.watchAdvertisements({ signal: controle.signal }).catch((e) => {
+      if (e.name !== 'AbortError') fim(e);
+    });
+  });
+}
+
+async function abrirConexao(aguardarAnuncio) {
   clearTimeout(temporizadorReconexao);
   definirEstado('conectando', `Abrindo conexão com ${dispositivo.name || 'o PC'}…`);
+  if (aguardarAnuncio) {
+    registrar(`Procurando ${dispositivo.name || 'o PC'}…`);
+    await esperarAnuncio(dispositivo, 15000);
+  }
   registrar(`Conectando a ${dispositivo.name || dispositivo.id}…`);
   const gatt = await dispositivo.gatt.connect();
   const servico = await gatt.getPrimaryService(SERVICO_UUID);
@@ -688,6 +722,8 @@ async function abrirConexao() {
   await caracNotify.startNotifications();
   if (desconexaoManual) { dispositivo.gatt.disconnect(); return; }   // cancelado no meio
   tentativa = 0;
+  // Só guarda o PC depois de achar o serviço: escolha errada não vira filtro.
+  gravarJSON(CHAVE_DISPOSITIVO, { id: dispositivo.id, nome: dispositivo.name || '' });
   definirEstado('conectado', 'Recebendo notificações do PC em tempo real.');
   registrar('Conectado; notificações assinadas.');
   if (config.telaAcesa) atualizarTelaAcesa();
@@ -718,7 +754,8 @@ function agendarReconexao() {
   temporizadorReconexao = setTimeout(async () => {
     if (desconexaoManual) return;
     try {
-      await abrirConexao();
+      // Da 2ª tentativa em diante, espera o anúncio (o PC pode ter reiniciado).
+      await abrirConexao(tentativa > 1);
     } catch (e) {
       registrar(`Reconexão falhou: ${e.message}`);
       agendarReconexao();
@@ -761,7 +798,7 @@ async function tentarDispositivoConhecido() {
     $('#info-nome').textContent = achado.name || achado.id;
     if (config.reconectar) {
       registrar('PC conhecido encontrado; tentando reconectar…');
-      await abrirConexao();
+      await abrirConexao(true);
     }
   } catch (e) {
     registrar(`Reconexão automática não deu certo (${e.message}). Toque em Conectar.`);
