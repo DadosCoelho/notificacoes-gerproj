@@ -721,6 +721,7 @@ async function abrirConexao(aguardarAnuncio) {
   caracNotify.addEventListener('characteristicvaluechanged', aoReceberValor);
   await caracNotify.startNotifications();
   if (desconexaoManual) { dispositivo.gatt.disconnect(); return; }   // cancelado no meio
+  iniciarVigia();
   tentativa = 0;
   // Só guarda o PC depois de achar o serviço: escolha errada não vira filtro.
   gravarJSON(CHAVE_DISPOSITIVO, { id: dispositivo.id, nome: dispositivo.name || '' });
@@ -730,6 +731,7 @@ async function abrirConexao(aguardarAnuncio) {
 }
 
 function aoDesconectar() {
+  pararVigia();
   caracNotify = null;
   caracAck = null;
   filaAck = Promise.resolve();
@@ -877,7 +879,53 @@ function processarJSON(bytes) {
   enviarAck(n.id);
 }
 
-// O Chrome não aceita duas operações GATT ao mesmo tempo: os ACKs vão em fila.
+/* ---- Vigia: inscrição "surda" ----
+   Às vezes a inscrição fica ativa no Windows, mas os notifies não chegam à
+   página (visto em 20/11/2026; recarregar resolvia). A cada 5 s a página lê
+   o NOTIFY_CHAR, que guarda o último pedaço enviado. Se ele for de uma
+   notificação que não chegou, duas leituras seguidas, a página reconecta. */
+const INTERVALO_VIGIA = 5000;
+let temporizadorVigia = null;
+let suspeitaVigia = null;   // id visto na leitura anterior sem ter chegado
+
+function idDoValor(bytes) {
+  if (!bytes.length) return null;
+  if (bytes[0] === MARCA_FRAGMENTO) {
+    if (bytes.length < 5) return null;
+    return Array.from(bytes.subarray(1, 5), (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  try { return JSON.parse(decodificador.decode(bytes)).id || null; } catch { return null; }
+}
+
+function iniciarVigia() {
+  pararVigia();
+  temporizadorVigia = setInterval(vigiar, INTERVALO_VIGIA);
+}
+function pararVigia() {
+  clearInterval(temporizadorVigia);
+  temporizadorVigia = null;
+  suspeitaVigia = null;
+}
+
+function vigiar() {
+  filaAck = filaAck.then(async () => {
+    if (!caracNotify) return;
+    let bytes;
+    try {
+      const v = await caracNotify.readValue();
+      bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    } catch { return; }   // leitura falhou: a próxima tenta de novo
+    const id = idDoValor(bytes);
+    const perdida = id && !fragmentos.has(id) && !historico.some((h) => h.id === id);
+    if (!perdida) { suspeitaVigia = null; return; }
+    if (suspeitaVigia !== id) { suspeitaVigia = id; return; }   // espera confirmar
+    registrar(`Notificação [${id}] não chegou pela inscrição; reconectando…`);
+    pararVigia();
+    if (dispositivo?.gatt.connected) dispositivo.gatt.disconnect();   // aoDesconectar reconecta
+  });
+}
+
+// O Chrome não aceita duas operações GATT ao mesmo tempo: ACKs e leituras vão em fila.
 let filaAck = Promise.resolve();
 function enviarAck(id) {
   filaAck = filaAck.then(async () => {
