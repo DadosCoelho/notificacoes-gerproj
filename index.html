@@ -855,6 +855,18 @@ function processarJSON(bytes) {
     registrar(`Recebido valor inválido (${bytes.length} B): ${e.message}`);
     return;
   }
+  // Ordem do PC: o assunto foi resolvido lá (ex.: pergunta respondida no notebook)
+  if (n && n.tipo === 'remover' && typeof n.id === 'string' && typeof n.chave === 'string') {
+    const antes = historico.length;
+    historico = historico.filter((h) => h.chave !== n.chave);
+    if (historico.length !== antes) {
+      salvarHistorico();
+      renderizar();
+      registrar(`Resolvido no PC: ${antes - historico.length} card(s) de ${n.chave} removido(s).`);
+    }
+    enviarAck(n.id);
+    return;
+  }
   if (!n || typeof n.id !== 'string' || typeof n.titulo !== 'string') {
     registrar('Recebido JSON sem id/titulo; ignorado.');
     return;
@@ -868,6 +880,7 @@ function processarJSON(bytes) {
       app: typeof n.app === 'string' ? n.app : 'PC',
       ts: Number(n.ts) || Date.now(),
       lida: false,
+      ...(typeof n.chave === 'string' ? { chave: n.chave } : {}),
     });
     salvarHistorico();
     renderizar();
