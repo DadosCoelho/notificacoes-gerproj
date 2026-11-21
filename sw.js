@@ -3,8 +3,8 @@
    cópia guardada. Não guarda nada além dos arquivos do próprio app. */
 'use strict';
 
-const CACHE = 'notif-pc-v1';
-const ARQUIVOS = ['./', './index.html', './manifest.webmanifest',
+const CACHE = 'notif-pc-v2';
+const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './coelho-blocos.js',
   './icones/icone-192.png', './icones/icone-512.png'];
 
 self.addEventListener('install', (e) => {

@@ -7,7 +7,7 @@
 <title>Notificações do PC</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icones/icone-192.png">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b82f6'/%3E%3Cpath d='M16 7a6 6 0 0 0-6 6v4l-2 3h16l-2-3v-4a6 6 0 0 0-6-6zm-2.5 15a2.5 2.5 0 0 0 5 0z' fill='white'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="icones/icone-192.png">
 <style>
 /* ===================== Tokens de cor (claro / escuro) ===================== */
 :root {
@@ -158,6 +158,16 @@ main { flex: 1; padding: 16px 16px 96px; max-width: 640px; width: 100%; margin: 
 
 .vazio { text-align: center; color: var(--texto-2); padding: 48px 16px; }
 .vazio svg { width: 48px; height: 48px; opacity: .5; margin-bottom: 8px; }
+/* Sem notificação: o coelho de blocos no centro da tela (cai ao entrar na aba, sobe ao sair) */
+.vazio-coelho {
+  min-height: calc(100dvh - 190px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 0;
+}
+.vazio-coelho.oculto { display: none; }
+.vazio-coelho p { margin: 4px 0 0; }
+.coelho-area { display: grid; place-items: center; }
+.coelho-area canvas { display: block; }
 
 /* Conexão */
 .painel {
@@ -276,10 +286,9 @@ nav button[aria-selected="true"] { color: var(--destaque); font-weight: 600; }
       <button class="botao perigo" id="botao-limpar" type="button">Limpar</button>
     </div>
     <div class="lista" id="lista"></div>
-    <div class="vazio oculto" id="vazio">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    <div class="vazio vazio-coelho oculto" id="vazio">
+      <div class="coelho-area" id="coelho-vazio" aria-hidden="true"></div>
       <p>Nenhuma notificação ainda.</p>
-      <button class="botao primario" type="button" data-ir="conexao">Conectar ao PC</button>
     </div>
   </section>
 
@@ -373,6 +382,7 @@ nav button[aria-selected="true"] { color: var(--destaque); font-weight: 600; }
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="coelho-blocos.js"></script>
 <script>
 'use strict';
 
@@ -476,12 +486,48 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', aplicarTem
 /* =========================================================================
    Abas
    ========================================================================= */
-function irPara(aba) {
+/* ── Coelho de blocos (coelho-blocos.js, o mesmo do Gerenciador) ── */
+const LADO_COELHO = 150;
+// O desenho é pixel a pixel: na tela do celular (~3x) o canvas do PC teria
+// ~1350 px de lado por quadro. Aqui ele fica em no máximo 3x o tamanho CSS.
+if (typeof canvasCoelhoBlocos === 'function') {
+  canvasCoelhoBlocos = function (lado, folga = 1.5) {   // eslint-disable-line no-global-assign
+    const cv = document.createElement('canvas');
+    const css = Math.round(lado * folga);
+    cv.width = cv.height = Math.round(css * Math.min(3, (window.devicePixelRatio || 1) * 1.5));
+    cv.style.width = cv.style.height = `${css}px`;
+    cv.className = 'coelho-blocos';
+    return cv;
+  };
+}
+function montarCoelhoVazio() {
+  const area = $('#coelho-vazio');
+  if (!area || typeof criarCoelho !== 'function') return;
+  area.textContent = '';
+  area.coelhoSair = null;
+  try { criarCoelho(area, LADO_COELHO, 1.5); } catch (e) { /* decorativo */ }
+}
+
+let trocandoAba = false;
+async function irPara(aba) {
+  const atual = document.querySelector('.aba.ativa');
+  if (trocandoAba || (atual && atual.id === `aba-${aba}`)) return;
+  trocandoAba = true;
+  // saindo de Notificações: os blocos sobem antes de a aba trocar (no máximo 1,5 s)
+  if (atual && atual.id === 'aba-notificacoes' && typeof coelhoSairDe === 'function') {
+    const saida = coelhoSairDe(atual);
+    if (saida) await saida;
+  }
   document.querySelectorAll('nav button').forEach((b) =>
     b.setAttribute('aria-selected', String(b.dataset.aba === aba)));
   document.querySelectorAll('.aba').forEach((s) =>
     s.classList.toggle('ativa', s.id === `aba-${aba}`));
   window.scrollTo(0, 0);
+  if (aba === 'notificacoes' && typeof coelhoComecarEntrada === 'function') {
+    coelhoComecarEntrada();
+    if (!$('#vazio').classList.contains('oculto')) montarCoelhoVazio();
+  }
+  trocandoAba = false;
 }
 document.querySelectorAll('nav button').forEach((b) =>
   b.addEventListener('click', () => irPara(b.dataset.aba)));
@@ -534,7 +580,13 @@ function renderizar() {
     });
     lista.append(card);
   }
+  const vazioAntes = !$('#vazio').classList.contains('oculto');
   $('#vazio').classList.toggle('oculto', historico.length > 0);
+  // ficou vazio agora (ex.: Limpar): o coelho cai de novo
+  if (!historico.length && !vazioAntes && typeof coelhoComecarEntrada === 'function') {
+    coelhoComecarEntrada();
+    montarCoelhoVazio();
+  }
   $('.barra-acoes').classList.toggle('oculto', historico.length === 0);
   atualizarContadores();
 }
@@ -1105,6 +1157,7 @@ function enviarAck(id) {
    ========================================================================= */
 $('#info-servico').textContent = SERVICO_UUID;
 aplicarTema();
+if (typeof coelhoComecarEntrada === 'function') coelhoComecarEntrada();   // cai ao abrir o app
 renderizar();
 renderQuadro();
 definirEstado('desconectado', 'Toque em Conectar e escolha o seu PC.');
