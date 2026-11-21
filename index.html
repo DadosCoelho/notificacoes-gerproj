@@ -158,10 +158,11 @@ main { flex: 1; padding: 16px 16px 96px; max-width: 640px; width: 100%; margin: 
 
 .vazio { text-align: center; color: var(--texto-2); padding: 48px 16px; }
 .vazio svg { width: 48px; height: 48px; opacity: .5; margin-bottom: 8px; }
-/* Sem notificação: o coelho de blocos no centro da tela (cai ao entrar na aba, sobe ao sair) */
+/* Sem notificação: o coelho de blocos no alto, colado ao cabeçalho, para os
+   blocos parecerem cair de cima (de trás da barra) ao entrar na aba */
 .vazio-coelho {
-  min-height: calc(100dvh - 190px);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
+  margin-top: -16px;   /* anula o respiro do <main>: o canvas começa no cabeçalho */
   padding: 0;
 }
 .vazio-coelho.oculto { display: none; }
