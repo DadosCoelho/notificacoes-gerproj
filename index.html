@@ -396,6 +396,8 @@ dialog.folha::backdrop { background: rgba(0,0,0,.45); }
         <span class="chave"><input type="checkbox" data-config="vibrar"><span></span></span></label>
       <label class="opcao"><div><b>Som</b><small>Bipe curto a cada notificação</small></div>
         <span class="chave"><input type="checkbox" data-config="som"><span></span></span></label>
+      <div class="opcao"><div><b>Notificação do Android</b><small id="sistema-detalhe">Aviso na barra do celular quando o app não está na frente</small></div>
+        <button class="botao" id="botao-sistema" type="button">Permitir</button></div>
       <div class="opcao"><div><b>Testar</b><small>Vibração e som com as opções acima</small></div>
         <button class="botao" id="botao-testar" type="button">Testar</button></div>
     </div>
@@ -682,6 +684,7 @@ function renderizar() {
     card.addEventListener('click', () => {
       card.querySelector('.card-mensagem')?.classList.toggle('recolhida');
       if (!n.lida) { n.lida = true; salvarHistorico(); atualizarContadores(); card.classList.remove('nao-lida'); }
+      fecharSistema(n.id);
     });
     lista.append(card);
   }
@@ -836,12 +839,73 @@ $('#botao-lidas').addEventListener('click', () => {
   historico.forEach((n) => { n.lida = true; });
   salvarHistorico();
   renderizar();
+  fecharSistema();
 });
 $('#botao-limpar').addEventListener('click', () => {
   if (!confirm('Apagar todo o histórico de notificações deste celular?')) return;
   historico = [];
   salvarHistorico();
   renderizar();
+  fecharSistema();
+});
+
+/* =========================================================================
+   Notificação do Android (barra do sistema), pelo service worker do app
+   ========================================================================= */
+const suportaSistema = 'Notification' in window && 'serviceWorker' in navigator;
+
+function atualizarBotaoSistema() {
+  const b = $('#botao-sistema'), d = $('#sistema-detalhe');
+  if (!suportaSistema) { b.disabled = true; b.textContent = 'Indisponível'; d.textContent = 'Este navegador não mostra notificações do sistema'; return; }
+  const p = Notification.permission;
+  if (p === 'granted') { b.textContent = 'Testar'; d.textContent = 'Ligado: avisa na barra quando o app não está na frente'; }
+  else if (p === 'denied') { b.textContent = 'Bloqueado'; d.textContent = 'Libere em Configurações do Android → Apps → Chrome (ou o app) → Notificações'; }
+  else { b.textContent = 'Permitir'; d.textContent = 'Aviso na barra do celular quando o app não está na frente'; }
+}
+
+$('#botao-sistema').addEventListener('click', async () => {
+  if (!suportaSistema) return;
+  if (Notification.permission === 'default') await Notification.requestPermission();
+  atualizarBotaoSistema();
+  if (Notification.permission === 'granted') {
+    notificarSistema({ id: 'teste', titulo: 'Teste do celular', mensagem: 'As notificações do Android estão ligadas.' }, true);
+  }
+});
+
+/* Aviso na barra do Android. Com o app na frente, só o card (não avisa em dobro). */
+async function notificarSistema(n, forcar) {
+  if (!suportaSistema || Notification.permission !== 'granted') return;
+  if (!forcar && document.visibilityState === 'visible') return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification(n.titulo, {
+      body: n.mensagem || '',
+      tag: n.id,                       // fecharSistema(id) acha pela tag
+      renotify: true,
+      icon: 'icones/icone-192.png',
+      badge: 'icones/selo-96.png',
+      vibrate: config.vibrar ? [120, 60, 120] : [],
+      silent: !config.som && !config.vibrar,
+      data: { id: n.id },
+    });
+  } catch (e) {
+    registrar(`Notificação do Android falhou: ${e.message}`);
+  }
+}
+
+/* Tira da barra: um aviso (id) ou todos. */
+async function fecharSistema(id) {
+  if (!suportaSistema || Notification.permission !== 'granted') return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const lista = await reg.getNotifications(id ? { tag: id } : {});
+    lista.forEach((x) => x.close());
+  } catch { /* sem service worker: nada a fechar */ }
+}
+
+/* Voltou para o app: os avisos já estão nos cards, a barra pode limpar. */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') fecharSistema();
 });
 
 /* =========================================================================
@@ -1227,6 +1291,7 @@ function processarJSON(bytes) {
   // Ordem do PC: o assunto foi resolvido lá (ex.: pergunta respondida no notebook)
   if (n && n.tipo === 'remover' && typeof n.id === 'string' && typeof n.chave === 'string') {
     const antes = historico.length;
+    historico.filter((h) => h.chave === n.chave).forEach((h) => fecharSistema(h.id));
     historico = historico.filter((h) => h.chave !== n.chave);
     if (historico.length !== antes) {
       salvarHistorico();
@@ -1255,6 +1320,7 @@ function processarJSON(bytes) {
     salvarHistorico();
     renderizar();
     alertar();
+    notificarSistema(n);
     recebidasSessao += 1;
     $('#info-recebidas').textContent = `${recebidasSessao} nesta sessão`;
     registrar(`Recebida [${n.id}] ${n.titulo}`);
@@ -1347,6 +1413,7 @@ if (typeof coelhoComecarEntrada === 'function') coelhoComecarEntrada();   // cai
 renderizar();
 renderQuadro();
 renderPainel();
+atualizarBotaoSistema();
 
 /* ── Código de acesso (vem no QR do PC, depois do "#") ── */
 const CHAVE_TOKEN = 'notif-ble:token';
