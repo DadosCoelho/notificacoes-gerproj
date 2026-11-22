@@ -324,9 +324,6 @@ dialog.folha::backdrop { background: rgba(0,0,0,.45); }
   <span class="status" id="status" data-estado="desconectado" role="status" aria-live="polite">
     <span class="ponto"></span><span id="status-texto">Desconectado</span>
   </span>
-  <button class="botao-icone" id="botao-tema" type="button" aria-label="Alternar tema claro/escuro">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
-  </button>
 </header>
 
 <main>
@@ -563,13 +560,6 @@ function aplicarTema() {
   $('meta[name="theme-color"]').content = escuro ? '#181b21' : '#ffffff';
   $('#select-tema').value = config.tema;
 }
-$('#botao-tema').addEventListener('click', () => {
-  const escuroAgora = document.documentElement.dataset.theme === 'dark' ||
-    (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
-  config.tema = escuroAgora ? 'claro' : 'escuro';
-  gravarJSON(CHAVE_CONFIG, config);
-  aplicarTema();
-});
 $('#select-tema').addEventListener('change', (e) => {
   config.tema = e.target.value;
   gravarJSON(CHAVE_CONFIG, config);
