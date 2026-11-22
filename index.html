@@ -676,6 +676,7 @@ function renderizar() {
       b.textContent = 'Copiar';
       b.addEventListener('click', async (ev) => {
         ev.stopPropagation();
+        if ((typeof window.Ponte === 'object' && window.Ponte !== null)) { mostrarToast(window.Ponte.copiar(n.mensagem) ? 'Copiado.' : 'Não consegui copiar.'); return; }
         try { await navigator.clipboard.writeText(n.mensagem); mostrarToast('Copiado.'); }
         catch { mostrarToast('O navegador não deixou copiar: segure no texto e copie à mão.'); }
       });
@@ -856,6 +857,7 @@ const suportaSistema = 'Notification' in window && 'serviceWorker' in navigator;
 
 function atualizarBotaoSistema() {
   const b = $('#botao-sistema'), d = $('#sistema-detalhe');
+  if ((typeof window.Ponte === 'object' && window.Ponte !== null)) { b.classList.add('oculto'); d.textContent = 'Ligado: o app avisa na barra do Android mesmo com a tela apagada'; return; }
   if (!suportaSistema) { b.disabled = true; b.textContent = 'Indisponível'; d.textContent = 'Este navegador não mostra notificações do sistema'; return; }
   const p = Notification.permission;
   if (p === 'granted') { b.textContent = 'Testar'; d.textContent = 'Ligado: avisa na barra quando o app não está na frente'; }
@@ -1000,7 +1002,7 @@ function definirEstado(estado, detalhe) {
   $('#botao-conectar').classList.toggle('oculto', estado !== 'desconectado');
   $('#botao-desconectar').classList.toggle('oculto', estado === 'desconectado');
   $('#botao-desconectar').textContent = estado === 'conectando' ? 'Cancelar' : 'Desconectar';
-  $('#botao-todos').classList.toggle('oculto', estado !== 'desconectado');
+  $('#botao-todos').classList.toggle('oculto', estado !== 'desconectado' || (typeof window.Ponte === 'object' && window.Ponte !== null));
   $('#info-nome').textContent = dispositivo ? (dispositivo.name || dispositivo.id) : '—';
 }
 
@@ -1424,8 +1426,36 @@ const CHAVE_TOKEN = 'notif-ble:token';
   history.replaceState(null, '', location.pathname + location.search);   // tira o código da barra
   registrar('Código de acesso do PC guardado (veio pelo QR).');
 })();
-function codigoAcesso() { try { return localStorage.getItem(CHAVE_TOKEN) || ''; } catch { return ''; } }
-$('#info-acesso').textContent = codigoAcesso() ? 'autorizado (pelo QR)' : 'sem código: escaneie o QR do PC';
+function codigoAcesso() {
+  if ((typeof window.Ponte === 'object' && window.Ponte !== null)) return window.Ponte.codigo() || '';
+  try { return localStorage.getItem(CHAVE_TOKEN) || ''; } catch { return ''; }
+}
+function mostrarAcesso() {
+  $('#info-acesso').textContent = codigoAcesso() ? 'autorizado (pelo QR)' : 'sem código: escaneie o QR do PC';
+}
+mostrarAcesso();
+
+/* Chrome do Android com o código: botão que passa o código ao app nativo
+   (link de esquema próprio sempre abre o app; https não, desde o Android 12). */
+(function oferecerApp() {
+  const token = codigoAcesso();
+  if ((typeof window.Ponte === 'object' && window.Ponte !== null) || !token || !/Android/i.test(navigator.userAgent)) return;
+  const div = document.createElement('div');
+  div.className = 'aviso';
+  const b = document.createElement('strong');
+  b.textContent = 'Tem o app Android "Notificações do PC"?';
+  const p = document.createElement('p');
+  p.textContent = 'Ele recebe os avisos com o celular no bolso. Toque abaixo para passar o código de acesso para ele.';
+  const a = document.createElement('a');
+  a.className = 'botao primario';
+  a.style.display = 'inline-block';
+  a.style.marginTop = '8px';
+  a.style.textDecoration = 'none';
+  a.href = `notifpc://acesso?t=${encodeURIComponent(token)}`;
+  a.textContent = 'Usar este código no app Android';
+  div.append(b, p, a);
+  $('#avisos').append(div);
+})();
 
 /* Envia um comando ao PC e espera a resposta (até 20 s). Longo vai em pedaços
    com o mesmo cabeçalho de 9 bytes dos avisos. */
@@ -1450,13 +1480,21 @@ function pedacosComando(id, bytes) {
 }
 function enviarComando(dados) {
   return new Promise((ok, falha) => {
-    if (!caracCmd) return falha(new Error('Conecte ao PC primeiro (o Gerenciador precisa estar aberto).'));
+    const viaApp = (typeof window.Ponte === 'object' && window.Ponte !== null);
+    if (!viaApp && !caracCmd) return falha(new Error('Conecte ao PC primeiro (o Gerenciador precisa estar aberto).'));
     const token = codigoAcesso();
     if (!token) return falha(new Error('Sem código de acesso: escaneie o QR da tela Notificações do PC.'));
     const id = novoId();
     const bytes = new TextEncoder().encode(JSON.stringify({ ...dados, id, token }));
     const prazo = setTimeout(() => { comandosPendentes.delete(id); falha(new Error('O PC não respondeu em 20 s.')); }, 20000);
     comandosPendentes.set(id, { ok, prazo });
+    if (viaApp) {
+      if (!window.Ponte.enviarComando(id, new TextDecoder().decode(bytes))) {
+        clearTimeout(prazo); comandosPendentes.delete(id);
+        falha(new Error('O app não está conectado ao PC.'));
+      }
+      return;
+    }
     filaAck = filaAck.then(async () => {
       try {
         for (const p of pedacosComando(id, bytes)) await caracCmd.writeValueWithResponse(p);
@@ -1470,6 +1508,7 @@ function enviarComando(dados) {
 
 /* ── Botão + (caixa de entrada) ── */
 let tipoEntrada = 'tarefa';
+let appConectado = false;   // modo app: estado do serviço nativo
 const DICA_ENTRADA = {
   tarefa: 'Vai para a coluna A fazer do quadro do PC. 1ª linha = título.',
   nota: 'Abre como nota (post-it) na tela do PC. 1ª linha = título.',
@@ -1477,7 +1516,8 @@ const DICA_ENTRADA = {
 };
 function atualizarFab() {
   const aba = document.querySelector('.aba.ativa');
-  const visivel = !!caracCmd && aba && (aba.id === 'aba-notificacoes' || aba.id === 'aba-tarefas');
+  const conectado = (typeof window.Ponte === 'object' && window.Ponte !== null) ? appConectado : !!caracCmd;
+  const visivel = conectado && aba && (aba.id === 'aba-notificacoes' || aba.id === 'aba-tarefas');
   $('#botao-mais').classList.toggle('oculto', !visivel);
 }
 function escolherTipo(tipo) {
@@ -1538,7 +1578,38 @@ function abrirMover(tarefa, colunaAtual) {
 $('#mover-cancelar').addEventListener('click', () => $('#folha-mover').close());
 definirEstado('desconectado', 'Toque em Conectar e escolha o seu PC.');
 
-if (suporteBluetooth()) {
+/* Modo app: o serviço nativo já recebeu, remontou e confirmou (ACK) cada
+   mensagem; aqui ela passa pelo mesmo processarJSON do Web Bluetooth. */
+function atualizarDoApp() {
+  let e = {};
+  try { e = JSON.parse(window.Ponte.estado()); } catch { return; }
+  definirEstado(e.estado || 'desconectado', e.detalhe || '');
+  $('#info-nome').textContent = e.nome || '—';
+  appConectado = e.estado === 'conectado';
+  atualizarFab();
+  mostrarAcesso();
+  let lista = [];
+  try { lista = JSON.parse(window.Ponte.mensagens()); } catch { lista = []; }
+  for (const m of lista) processarJSON(new TextEncoder().encode(JSON.stringify(m)));
+  $('#registro').textContent = window.Ponte.registro().split(String.fromCharCode(10)).reverse().join(String.fromCharCode(10));
+}
+
+/* Dentro do app Android (notificacoes_android/): o Bluetooth é do serviço
+   nativo, e a página conversa com ele por window.Ponte, não pelo Chrome. */
+const MODO_APP = typeof window.Ponte === 'object' && window.Ponte !== null;
+
+if (MODO_APP) {
+  $('#avisos').textContent = '';
+  $('#botao-todos').classList.add('oculto');
+  $('#botao-todos').textContent = '';
+  $('#botao-conectar').textContent = 'Escolher o PC';
+  $('#botao-conectar').addEventListener('click', () => window.Ponte.escolherPc());
+  $('#botao-desconectar').addEventListener('click', () => window.Ponte.desconectar());
+  // O serviço nativo chama window.aoMudarApp() a cada estado ou mensagem nova
+  window.aoMudarApp = atualizarDoApp;
+  atualizarDoApp();
+  setInterval(atualizarDoApp, 5000);   // garantia, se algum aviso do serviço se perder
+} else if (suporteBluetooth()) {
   $('#botao-conectar').addEventListener('click', () => escolherDispositivo(false));
   $('#botao-todos').addEventListener('click', () => escolherDispositivo(true));
   $('#botao-desconectar').addEventListener('click', desconectar);
@@ -1553,7 +1624,7 @@ if (suporteBluetooth()) {
 if (config.telaAcesa) atualizarTelaAcesa();
 
 /* Service worker: deixa o Chrome instalar o app (Adicionar à tela inicial → Instalar) */
-if ('serviceWorker' in navigator && window.isSecureContext && location.protocol === 'https:') {
+if (!MODO_APP && 'serviceWorker' in navigator && window.isSecureContext && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch((e) => registrar(`Instalação indisponível: ${e.message}`));
 }
 </script>
