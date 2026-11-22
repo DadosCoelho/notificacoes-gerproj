@@ -1251,6 +1251,18 @@ function processarJSON(bytes) {
   }
   if (n && typeof n.id === 'string') idsProcessados.add(n.id);
 
+  // Código de acesso mandado pelo PC (botão "Enviar código ao celular conectado")
+  if (n && n.tipo === 'codigo' && typeof n.id === 'string') {
+    if (/^[A-Za-z0-9_-]{16,64}$/.test(n.t || '')) {
+      try { localStorage.setItem('notif-ble:token', n.t); } catch { /* sem armazenamento */ }
+      mostrarToast('Código de acesso do PC guardado.');
+      registrar('Código de acesso do PC guardado (veio pelo Bluetooth).');
+      if (typeof mostrarAcesso === 'function') mostrarAcesso();
+    }
+    enviarAck(n.id);
+    return;
+  }
+
   // Resposta do PC a um comando nosso (tarefa, nota, texto, mover)
   if (n && n.tipo === 'resposta' && typeof n.id === 'string') {
     const espera = comandosPendentes.get(n.ref);
@@ -1441,7 +1453,8 @@ mostrarAcesso();
   a.style.display = 'inline-block';
   a.style.marginTop = '8px';
   a.style.textDecoration = 'none';
-  a.href = `notifpc://acesso?t=${encodeURIComponent(token)}`;
+  // formato intent:// do Chrome (o esquema puro notifpc:// às vezes é ignorado sem aviso)
+  a.href = `intent://acesso?t=${encodeURIComponent(token)}#Intent;scheme=notifpc;package=br.gerenciador.notificacoes;end`;
   a.textContent = 'Usar este código no app Android';
   div.append(b, p, a);
   $('#avisos').append(div);
@@ -1516,8 +1529,12 @@ function escolherTipo(tipo) {
     b.setAttribute('aria-pressed', String(b.dataset.tipo === tipo)));
   $('#entrada-dica').textContent = DICA_ENTRADA[tipo];
 }
-document.querySelectorAll('#folha-entrada .segmentos button').forEach((b) =>
-  b.addEventListener('click', () => escolherTipo(b.dataset.tipo)));
+document.querySelectorAll('#folha-entrada .segmentos button').forEach((b) => {
+  // o toque no botão não tira o foco da caixa: o teclado não desce ao trocar o tipo
+  b.addEventListener('pointerdown', (ev) => ev.preventDefault());
+  b.addEventListener('mousedown', (ev) => ev.preventDefault());
+  b.addEventListener('click', () => { escolherTipo(b.dataset.tipo); $('#entrada-texto').focus(); });
+});
 $('#botao-mais').addEventListener('click', () => {
   escolherTipo(tipoEntrada);
   $('#folha-entrada').showModal();
